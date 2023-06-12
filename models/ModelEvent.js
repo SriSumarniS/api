@@ -3,7 +3,7 @@ import db from "../config/db.js";
 
 const { DataTypes } = Sequelize
 
-const Event = db.define('pengajuan_event', {
+const addEvent = db.define('pengajuan_event', {
    nama_event:{
       type: DataTypes.STRING
    },
@@ -23,14 +23,11 @@ const Event = db.define('pengajuan_event', {
       type: DataTypes.STRING
    },
    foto: {
-      type: DataTypes.BLOB('1mb'),
-      allowNull: true,
-      validate: {
-        max: 1024 * 1024, // 1 MB in bytes
-      }
+      type: DataTypes.BLOB,
+      allowNull: true
    }
 },{
    freezeTableName:true
 })
 
-export default Event
+export default addEvent
