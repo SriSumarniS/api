@@ -47,7 +47,7 @@ export const Login = async(req, res) => {
       })
    } catch (error) {
       res.status(404).json({
-         message: "Akun tidak ditemukan...!"
+         message: "Pengguna tidak ditemukan...!"
       })
    }
 }
