@@ -1,6 +1,9 @@
+//import { error } from "console";
 import db from "../config/db.js";
 import addEvent from "../models/ModelEvent.js";
 import fs from "fs";
+import axios from "axios";
+import { createConnection } from 'mysql';
 
 // get all event
 export const getEvent = async(req, res) => {
@@ -14,41 +17,73 @@ export const getEvent = async(req, res) => {
 
 // add event
 export const createPengajuanEvent = async (req, res) => {
-   try {
-     const { nama_event, jenis_event, cara_transaksi, tgl_mulai, tgl_berakhir, deskripsi } = req.body;
-     const fotoBuffer = fs.readFileSync(req.file.path);
-     //const url
-     // query db
-     // gabungin json yg 4
-     // diparsing ke json
-     // di hit API model
-     // diparsing ke js object
-     // ambil data let isfraud
-     if (req.file.size > 1 * 1024 * 1024) {
-       // Jika ukuran file foto melebihi 1 MB, kembalikan respons kesalahan
-       fs.unlinkSync(req.file.path); // Hapus file foto yang diunggah
-       return res.status(400).json({ message: 'Ukuran file foto melebihi batasan maksimal (1 MB)' });
-     }
- 
-     const newPengajuanEvent = {
-       nama_event: nama_event,
-       jenis_event: jenis_event,
-       cara_transaksi: cara_transaksi,
-       tgl_mulai: tgl_mulai,
-       tgl_berakhir: tgl_berakhir,
-       deskripsi: deskripsi,
-       foto: fotoBuffer
-     };
- 
-     await addEvent.create(newPengajuanEvent);
- 
-     res.status(200).json({ message: 'Pengajuan event berhasil dibuat' });
-     // tambah json (key:isfraud , value:hasil)
-   } catch (error) {
-     console.error('Terjadi kesalahan saat membuat pengajuan event:', error);
-     res.status(500).json({ message: 'Gagal membuat pengajuan event' });
-   }
- };
+  try {
+    // Membuat koneksi ke database
+    const connection = createConnection({
+      host: '34.101.64.250',
+      user: 'root',
+      password: 'bismillah',
+      database: 'sql-eci'
+    });
+
+    const { nama_event, jenis_event, cara_transaksi, tgl_mulai, tgl_berakhir, deskripsi } = req.body;
+    const fotoBuffer = fs.readFileSync(req.file.path);
+    const url = 'https://model-ml-py2-c6fl6h5vlq-et.a.run.app/predict';
+
+    // Query SQL untuk mengambil data penyelenggara dan kota_asal_penyelenggara
+    const query = 'SELECT penyelenggara, kota_asal_penyelenggara FROM data_pengguna';
+
+    // Menjalankan query
+    connection.query(query, async (error, results, fields) => {
+      if (error) {
+        console.error('Kesalahan query: ' + error.stack);
+        return;
+      }
+
+      // Ambil data penyelenggara dan kota_asal_penyelenggara dari hasil query
+      const { penyelenggara, kota_asal_penyelenggara } = results[1, 3];
+
+      // Buat objek dataMl dengan data yang diperlukan untuk input ke model ML
+      const dataMl = {
+        penyelenggara: penyelenggara,
+        kota_asal_penyelenggara: kota_asal_penyelenggara,
+        jenis_event: jenis_event,
+        cara_transaksi: cara_transaksi
+      };
+
+      try {
+        // Kirim dataMl ke model ML
+        const response = await axios.post(url, dataMl);
+        const hasilModelMl = response.data
+
+        // Simpan pengajuan event ke database tabel pengajuan_event
+        const newPengajuanEvent = {
+          nama_event: nama_event,
+          jenis_event: jenis_event,
+          cara_transaksi: cara_transaksi,
+          tgl_mulai: tgl_mulai,
+          tgl_berakhir: tgl_berakhir,
+          deskripsi: deskripsi,
+          foto: fotoBuffer
+        };
+        await addEvent.create(newPengajuanEvent);
+
+        // Kirim respons dengan hasil pengolahan model ML dan pesan sukses
+        res.status(200).json({
+          isFraudData: hasilModelMl.isFraud,
+          message: 'Pengajuan berhasil diajukan'
+        });
+      } catch (error) {
+        console.error('Terjadi kesalahan saat mengirim ke model ML:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengirim ke model ML' });
+      }
+    });
+  } catch (error) {
+    console.error('Terjadi kesalahan saat membuat pengajuan event:', error);
+    res.status(500).json({ message: 'Gagal membuat pengajuan event' });
+  }
+};
+
 
 // delete event
 export const hapusEventById = async (req, res) => {
